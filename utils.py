@@ -1,151 +1,79 @@
+"""
+Utility functions for HomeTracker - Smart Home Management System
+Data operations, formatting, and helper functions
+"""
 import streamlit as st
 import pandas as pd
-import os
-import re
-import shutil
 from datetime import datetime, timedelta
-from pandas.errors import EmptyDataError
-from config import *
+from typing import Optional, List, Dict, Tuple, Any
+from decimal import Decimal
+import logging
+from sqlalchemy import text
 
-# ==================== CATEGORY MANAGEMENT ====================
-def load_categories():
-    """Load categories from CSV file"""
-    try:
-        if os.path.exists(CATEGORIES_FILE):
-            df = pd.read_csv(CATEGORIES_FILE)
-            return df["Category"].tolist()
-    except (FileNotFoundError, EmptyDataError):
-        pass
-    # Return default categories if file doesn't exist
-    save_categories(DEFAULT_CATEGORIES)
-    return DEFAULT_CATEGORIES
+from database import get_db_manager
+from config import CURRENCY_SYMBOL, DEFAULT_CATEGORIES, MAX_AMOUNT, MIN_AMOUNT, MAX_DESCRIPTION_LENGTH
 
-def save_categories(categories):
-    """Save categories to CSV file"""
-    df = pd.DataFrame({"Category": categories})
-    df.to_csv(CATEGORIES_FILE, index=False)
+logger = logging.getLogger(__name__)
 
-def add_category(category_name):
-    """Add a new category"""
-    categories = load_categories()
-    category_name = sanitize_input(category_name).strip()
-    
-    if not category_name:
-        return False, "Category name cannot be empty"
-    
-    if len(category_name) > MAX_CATEGORY_LENGTH:
-        return False, f"Category name must be less than {MAX_CATEGORY_LENGTH} characters"
-    
-    if category_name in categories:
-        return False, "Category already exists"
-    
-    categories.append(category_name)
-    save_categories(categories)
-    return True, "Category added successfully"
 
-def delete_category(category_name):
-    """Delete a category"""
-    categories = load_categories()
-    
-    if category_name not in categories:
-        return False, "Category not found"
-    
-    if category_name in DEFAULT_CATEGORIES:
-        return False, "Cannot delete default categories"
-    
-    # Check if category is being used in expenses
-    df = load_expense_data()
-    if not df.empty and category_name in df["Category"].values:
-        return False, "Cannot delete category that has transactions. Please reassign or delete those transactions first."
-    
-    categories.remove(category_name)
-    save_categories(categories)
-    return True, "Category deleted successfully"
+# ==================== FORMATTING FUNCTIONS ====================
 
-def rename_category(old_name, new_name):
-    """Rename a category and update all associated transactions"""
-    categories = load_categories()
-    new_name = sanitize_input(new_name).strip()
-    
-    if not new_name:
-        return False, "New category name cannot be empty"
-    
-    if len(new_name) > MAX_CATEGORY_LENGTH:
-        return False, f"Category name must be less than {MAX_CATEGORY_LENGTH} characters"
-    
-    if old_name not in categories:
-        return False, "Original category not found"
-    
-    if new_name in categories and new_name != old_name:
-        return False, "New category name already exists"
-    
-    # Update category list
-    categories = [new_name if cat == old_name else cat for cat in categories]
-    save_categories(categories)
-    
-    # Update all transactions with this category
-    df = load_expense_data()
-    if not df.empty:
-        df.loc[df["Category"] == old_name, "Category"] = new_name
-        save_expense_data(df)
-    
-    return True, "Category renamed successfully"
+def format_currency(amount: float) -> str:
+    """Format amount as currency."""
+    return f"{CURRENCY_SYMBOL} {amount:,.2f}"
 
-# ==================== DATA LOADING AND SAVING ====================
-def load_expense_data():
-    """Load expense data from CSV with proper error handling"""
-    try:
-        df = pd.read_csv(EXPENSE_FILE)
-        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-        df = df.dropna(subset=["Date"])  # Remove invalid date rows
-        return df
-    except (FileNotFoundError, EmptyDataError):
-        return pd.DataFrame(columns=["Date", "Type", "Amount", "Category", "Description"])
 
-def save_expense_data(df):
-    """Save expense data to CSV"""
-    df.to_csv(EXPENSE_FILE, index=False)
+def format_date(date_obj) -> str:
+    """Format date for display."""
+    if isinstance(date_obj, str):
+        try:
+            date_obj = datetime.strptime(date_obj, "%Y-%m-%d")
+        except:
+            return date_obj
+    if hasattr(date_obj, 'strftime'):
+        return date_obj.strftime("%d %b %Y")
+    return str(date_obj)
 
-def load_goals_data():
-    """Load goals data from CSV"""
-    try:
-        return pd.read_csv(GOALS_FILE, parse_dates=["Deadline"])
-    except (FileNotFoundError, EmptyDataError):
-        return pd.DataFrame(columns=["Goal", "Target Amount", "Amount Saved", "Deadline"])
 
-def save_goals_data(df):
-    """Save goals data to CSV"""
-    df.to_csv(GOALS_FILE, index=False)
+def format_datetime(dt_obj) -> str:
+    """Format datetime for display."""
+    if isinstance(dt_obj, str):
+        try:
+            dt_obj = datetime.fromisoformat(dt_obj)
+        except:
+            return dt_obj
+    if hasattr(dt_obj, 'strftime'):
+        return dt_obj.strftime("%d %b %Y %H:%M")
+    return str(dt_obj)
 
-# Validation functions
-def validate_amount(amount):
-    """Validate amount input"""
+
+# ==================== VALIDATION FUNCTIONS ====================
+
+def validate_amount(amount) -> bool:
+    """Validate amount input."""
     try:
         amount = float(amount)
         return MIN_AMOUNT <= amount <= MAX_AMOUNT
     except (ValueError, TypeError):
         return False
 
-def validate_category(category):
-    """Validate category input"""
+
+def validate_category(category) -> bool:
+    """Validate category input."""
     if not category or not str(category).strip():
         return False
     return len(str(category).strip()) <= 50
 
-def validate_description(description):
-    """Validate description input"""
+
+def validate_description(description) -> bool:
+    """Validate description input."""
     if description is None:
-        return True  # Description is optional
+        return True
     return len(str(description)) <= MAX_DESCRIPTION_LENGTH
 
-def sanitize_input(text):
-    """Remove potentially harmful characters"""
-    if text is None:
-        return ""
-    return re.sub(r'[<>"\']', '', str(text))
 
-def validate_entry(amount, category, description=""):
-    """Validate complete entry"""
+def validate_entry(amount, category, description="") -> List[str]:
+    """Validate complete entry and return list of errors."""
     errors = []
     
     if not validate_amount(amount):
@@ -159,9 +87,233 @@ def validate_entry(amount, category, description=""):
     
     return errors
 
-# Data analysis functions
-def get_monthly_summary(df, year, month):
-    """Get monthly summary for specific year and month"""
+
+# ==================== CATEGORY FUNCTIONS ====================
+
+def load_categories(db_config: int = 1) -> List[str]:
+    """Load categories from database."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return DEFAULT_CATEGORIES
+    
+    try:
+        query = text("SELECT name FROM ht_categories WHERE is_active = TRUE ORDER BY name")
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            categories = [row[0] for row in result.fetchall()]
+        
+        return categories if categories else DEFAULT_CATEGORIES
+        
+    except Exception as e:
+        logger.error(f"Failed to load categories: {e}")
+        return DEFAULT_CATEGORIES
+
+
+def get_category_id(category_name: str, db_config: int = 1) -> Optional[int]:
+    """Get category ID by name."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return None
+    
+    try:
+        query = text("SELECT id FROM ht_categories WHERE name = :name")
+        with db.engine.connect() as conn:
+            result = conn.execute(query, {"name": category_name})
+            row = result.fetchone()
+            return row[0] if row else None
+    except Exception as e:
+        logger.error(f"Failed to get category ID: {e}")
+        return None
+
+
+def add_category(category_name: str, db_config: int = 1) -> Tuple[bool, str]:
+    """Add a new category."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    category_name = category_name.strip()
+    
+    if not category_name:
+        return False, "Category name cannot be empty"
+    
+    if len(category_name) > 50:
+        return False, "Category name must be less than 50 characters"
+    
+    try:
+        # Check if exists
+        check_query = text("SELECT id FROM ht_categories WHERE name = :name")
+        with db.engine.connect() as conn:
+            result = conn.execute(check_query, {"name": category_name})
+            if result.fetchone():
+                return False, "Category already exists"
+        
+        # Insert new category
+        insert_query = text("""
+            INSERT INTO ht_categories (name, category_type, is_default, is_active)
+            VALUES (:name, 'expense', FALSE, TRUE)
+        """)
+        with db.engine.connect() as conn:
+            conn.execute(insert_query, {"name": category_name})
+            conn.commit()
+        
+        return True, "Category added successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to add category: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def delete_category(category_name: str, db_config: int = 1) -> Tuple[bool, str]:
+    """Delete a category (soft delete)."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        # Check if default
+        check_query = text("SELECT is_default FROM ht_categories WHERE name = :name")
+        with db.engine.connect() as conn:
+            result = conn.execute(check_query, {"name": category_name})
+            row = result.fetchone()
+            if row and row[0]:
+                return False, "Cannot delete default categories"
+        
+        # Check if in use
+        usage_query = text("""
+            SELECT COUNT(*) FROM ht_transactions t
+            JOIN ht_categories c ON t.category_id = c.id
+            WHERE c.name = :name
+        """)
+        with db.engine.connect() as conn:
+            result = conn.execute(usage_query, {"name": category_name})
+            count = result.fetchone()[0]
+            if count > 0:
+                return False, "Cannot delete category that has transactions"
+        
+        # Soft delete
+        update_query = text("UPDATE ht_categories SET is_active = FALSE WHERE name = :name")
+        with db.engine.connect() as conn:
+            conn.execute(update_query, {"name": category_name})
+            conn.commit()
+        
+        return True, "Category deleted successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to delete category: {e}")
+        return False, f"Error: {str(e)}"
+
+
+# ==================== TRANSACTION FUNCTIONS ====================
+
+def load_transactions(user_id: Optional[int] = None, db_config: int = 1) -> pd.DataFrame:
+    """Load transactions from database."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return pd.DataFrame(columns=["Date", "Type", "Amount", "Category", "Description"])
+    
+    try:
+        query = text("""
+            SELECT t.id, t.transaction_date as Date, t.transaction_type as Type, 
+                   t.amount as Amount, c.name as Category, t.description as Description,
+                   t.created_at, t.user_id
+            FROM ht_transactions t
+            LEFT JOIN ht_categories c ON t.category_id = c.id
+            ORDER BY t.transaction_date DESC, t.created_at DESC
+        """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
+        
+        if not rows:
+            return pd.DataFrame(columns=["id", "Date", "Type", "Amount", "Category", "Description"])
+        
+        df = pd.DataFrame(rows, columns=["id", "Date", "Type", "Amount", "Category", "Description", "created_at", "user_id"])
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
+        
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to load transactions: {e}")
+        return pd.DataFrame(columns=["Date", "Type", "Amount", "Category", "Description"])
+
+
+def add_transaction(transaction_date, transaction_type: str, amount: float, 
+                   category: str, description: str = "", user_id: Optional[int] = None,
+                   db_config: int = 1) -> Tuple[bool, str]:
+    """Add a new transaction."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    # Validate
+    errors = validate_entry(amount, category, description)
+    if errors:
+        return False, "; ".join(errors)
+    
+    try:
+        # Get category ID
+        category_id = get_category_id(category, db_config)
+        
+        insert_query = text("""
+            INSERT INTO ht_transactions (user_id, transaction_date, transaction_type, 
+                                        category_id, amount, description)
+            VALUES (:user_id, :trans_date, :trans_type, :category_id, :amount, :description)
+        """)
+        
+        with db.engine.connect() as conn:
+            conn.execute(insert_query, {
+                "user_id": user_id,
+                "trans_date": transaction_date,
+                "trans_type": transaction_type,
+                "category_id": category_id,
+                "amount": amount,
+                "description": description
+            })
+            conn.commit()
+        
+        return True, f"{transaction_type} added successfully!"
+        
+    except Exception as e:
+        logger.error(f"Failed to add transaction: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def delete_transaction(transaction_id: int, db_config: int = 1) -> Tuple[bool, str]:
+    """Delete a transaction."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        delete_query = text("DELETE FROM ht_transactions WHERE id = :id")
+        with db.engine.connect() as conn:
+            conn.execute(delete_query, {"id": transaction_id})
+            conn.commit()
+        
+        return True, "Transaction deleted successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to delete transaction: {e}")
+        return False, f"Error: {str(e)}"
+
+
+# ==================== ANALYTICS FUNCTIONS ====================
+
+def get_monthly_summary(df: pd.DataFrame, year: int, month: int) -> Dict[str, Any]:
+    """Get monthly summary for specific year and month."""
+    if df.empty:
+        return {"budget": 0, "expense": 0, "net": 0, "transactions": 0}
+    
     filtered_df = df[(df["Date"].dt.year == year) & (df["Date"].dt.month == month)]
     
     budget = filtered_df[filtered_df["Type"] == "Budget"]["Amount"].sum()
@@ -169,20 +321,28 @@ def get_monthly_summary(df, year, month):
     net = budget - expense
     
     return {
-        "budget": budget,
-        "expense": expense,
-        "net": net,
+        "budget": float(budget),
+        "expense": float(expense),
+        "net": float(net),
         "transactions": len(filtered_df)
     }
 
-def get_total_balance(df):
-    """Calculate total balance (budget - expenses)"""
+
+def get_total_balance(df: pd.DataFrame) -> float:
+    """Calculate total balance (budget - expenses)."""
+    if df.empty:
+        return 0.0
+    
     budget = df[df["Type"] == "Budget"]["Amount"].sum()
     expense = df[df["Type"] == "Expense"]["Amount"].sum()
-    return budget - expense
+    return float(budget - expense)
 
-def get_top_spending_category(df, months=1):
-    """Get top spending category for the last N months"""
+
+def get_top_spending_category(df: pd.DataFrame, months: int = 1) -> str:
+    """Get top spending category for the last N months."""
+    if df.empty:
+        return "No expenses"
+    
     cutoff_date = datetime.now() - timedelta(days=30*months)
     recent_df = df[df["Date"] >= cutoff_date]
     expense_df = recent_df[recent_df["Type"] == "Expense"]
@@ -193,109 +353,27 @@ def get_top_spending_category(df, months=1):
     top_category = expense_df.groupby("Category")["Amount"].sum().idxmax()
     return top_category
 
-def get_average_daily_spending(df, days=30):
-    """Calculate average daily spending"""
+
+def get_average_daily_spending(df: pd.DataFrame, days: int = 30) -> float:
+    """Calculate average daily spending."""
+    if df.empty:
+        return 0.0
+    
     cutoff_date = datetime.now() - timedelta(days=days)
     recent_df = df[df["Date"] >= cutoff_date]
     expense_df = recent_df[recent_df["Type"] == "Expense"]
     
     if expense_df.empty:
-        return 0
+        return 0.0
     
-    total_expense = expense_df["Amount"].sum()
-    return total_expense / days
+    return float(expense_df["Amount"].sum() / days)
 
-# Backup functions
-def create_backup():
-    """Create automatic backup of data files"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Backup expense file
-    if os.path.exists(EXPENSE_FILE):
-        backup_expense = f"{BACKUP_DIR}/expenses_backup_{timestamp}.csv"
-        shutil.copy2(EXPENSE_FILE, backup_expense)
-    
-    # Backup goals file
-    if os.path.exists(GOALS_FILE):
-        backup_goals = f"{BACKUP_DIR}/goals_backup_{timestamp}.csv"
-        shutil.copy2(GOALS_FILE, backup_goals)
-    
-    return timestamp
 
-def cleanup_old_backups(keep_days=30):
-    """Remove backups older than specified days"""
-    cutoff_time = datetime.now() - timedelta(days=keep_days)
-    
-    for filename in os.listdir(BACKUP_DIR):
-        filepath = os.path.join(BACKUP_DIR, filename)
-        if os.path.isfile(filepath):
-            file_time = datetime.fromtimestamp(os.path.getctime(filepath))
-            if file_time < cutoff_time:
-                os.remove(filepath)
-
-# UI helper functions
-def format_currency(amount):
-    """Format amount as currency"""
-    return f"{CURRENCY_SYMBOL} {amount:,.2f}"
-
-# ==================== ADVANCED ANALYTICS ====================
-def get_daily_expense_trend(df, days=30):
-    """Get daily expense trend for visualization"""
-    cutoff_date = datetime.now() - timedelta(days=days)
-    recent_df = df[df["Date"] >= cutoff_date]
-    expense_df = recent_df[recent_df["Type"] == "Expense"]
-    
-    if expense_df.empty:
+def get_category_statistics(df: pd.DataFrame) -> pd.DataFrame:
+    """Get detailed statistics for each category."""
+    if df.empty:
         return pd.DataFrame()
     
-    daily_expenses = expense_df.groupby("Date")["Amount"].sum().reset_index()
-    return daily_expenses
-
-def get_weekday_spending(df):
-    """Analyze spending by day of the week"""
-    expense_df = df[df["Type"] == "Expense"].copy()
-    
-    if expense_df.empty:
-        return pd.DataFrame()
-    
-    expense_df["weekday"] = expense_df["Date"].dt.day_name()
-    weekday_df = expense_df.groupby("weekday")["Amount"].sum().reset_index()
-    
-    # Order by day of week
-    weekday_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    weekday_df["weekday"] = pd.Categorical(weekday_df["weekday"], categories=weekday_order, ordered=True)
-    weekday_df = weekday_df.sort_values("weekday")
-    
-    return weekday_df
-
-def get_cumulative_spending(df):
-    """Calculate cumulative spending over time"""
-    expense_df = df[df["Type"] == "Expense"].copy()
-    
-    if expense_df.empty:
-        return pd.DataFrame()
-    
-    daily_expenses = expense_df.groupby("Date")["Amount"].sum().reset_index()
-    daily_expenses = daily_expenses.sort_values("Date")
-    daily_expenses["cumulative"] = daily_expenses["Amount"].cumsum()
-    
-    return daily_expenses
-
-def get_most_expensive_day(df):
-    """Find the day with highest spending"""
-    expense_df = df[df["Type"] == "Expense"]
-    
-    if expense_df.empty:
-        return None, 0
-    
-    daily_expenses = expense_df.groupby("Date")["Amount"].sum()
-    max_date = daily_expenses.idxmax()
-    max_amount = daily_expenses.max()
-    
-    return max_date, max_amount
-
-def get_category_statistics(df):
-    """Get detailed statistics for each category"""
     expense_df = df[df["Type"] == "Expense"]
     
     if expense_df.empty:
@@ -310,8 +388,9 @@ def get_category_statistics(df):
     
     return category_stats
 
-def get_spending_insights(df):
-    """Generate spending insights and recommendations"""
+
+def get_spending_insights(df: pd.DataFrame) -> List[Dict[str, str]]:
+    """Generate spending insights and recommendations."""
     insights = []
     
     if df.empty:
@@ -322,7 +401,6 @@ def get_spending_insights(df):
     if expense_df.empty:
         return insights
     
-    # Total spending
     total_expense = expense_df["Amount"].sum()
     
     # Category analysis
@@ -333,17 +411,17 @@ def get_spending_insights(df):
     if top_percent > 50:
         insights.append({
             "type": "warning",
-            "message": f"⚠️ {top_percent:.1f}% of your expenses are in {top_category}. Consider reducing spending here."
+            "message": f"⚠️ {top_percent:.1f}% of spending is in {top_category}. Consider diversifying."
         })
     
     # Average daily spending
     avg_daily = get_average_daily_spending(df)
     insights.append({
         "type": "info",
-        "message": f"📊 Your average daily spending is {format_currency(avg_daily)}"
+        "message": f"📊 Average daily spending: {format_currency(avg_daily)}"
     })
     
-    # Compare this month vs last month
+    # Month comparison
     current_month = datetime.now().month
     current_year = datetime.now().year
     current_month_expense = df[
@@ -365,18 +443,446 @@ def get_spending_insights(df):
         if change_percent > 10:
             insights.append({
                 "type": "warning",
-                "message": f"📈 Your spending increased by {change_percent:.1f}% compared to last month"
+                "message": f"📈 Spending increased {change_percent:.1f}% vs last month"
             })
         elif change_percent < -10:
             insights.append({
                 "type": "success",
-                "message": f"📉 Great job! Your spending decreased by {abs(change_percent):.1f}% compared to last month"
+                "message": f"📉 Great! Spending decreased {abs(change_percent):.1f}% vs last month"
             })
     
     return insights
 
-def create_metric_card(title, value, delta=None, delta_color="normal"):
-    """Create a styled metric card"""
+
+# ==================== BUDGET FUNCTIONS ====================
+
+def get_budget(category_id: int, month: int, year: int, user_id: Optional[int] = None, 
+               db_config: int = 1) -> float:
+    """Get budget for a category in a specific month."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return 0.0
+    
+    try:
+        query = text("""
+            SELECT amount FROM ht_budgets 
+            WHERE category_id = :category_id AND month = :month AND year = :year
+        """)
+        with db.engine.connect() as conn:
+            result = conn.execute(query, {
+                "category_id": category_id,
+                "month": month,
+                "year": year
+            })
+            row = result.fetchone()
+            return float(row[0]) if row else 0.0
+    except Exception as e:
+        logger.error(f"Failed to get budget: {e}")
+        return 0.0
+
+
+def set_budget(category_id: int, month: int, year: int, amount: float, 
+               user_id: Optional[int] = None, db_config: int = 1) -> Tuple[bool, str]:
+    """Set budget for a category in a specific month."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        # Upsert budget
+        query = text("""
+            INSERT INTO ht_budgets (user_id, category_id, month, year, amount)
+            VALUES (:user_id, :category_id, :month, :year, :amount)
+            ON DUPLICATE KEY UPDATE amount = :amount, updated_at = NOW()
+        """)
+        
+        with db.engine.connect() as conn:
+            conn.execute(query, {
+                "user_id": user_id,
+                "category_id": category_id,
+                "month": month,
+                "year": year,
+                "amount": amount
+            })
+            conn.commit()
+        
+        return True, "Budget saved successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to set budget: {e}")
+        return False, f"Error: {str(e)}"
+
+
+# ==================== KITCHEN INVENTORY FUNCTIONS ====================
+
+def load_inventory(user_id: Optional[int] = None, db_config: int = 1) -> pd.DataFrame:
+    """Load kitchen inventory."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return pd.DataFrame()
+    
+    try:
+        query = text("""
+            SELECT id, item_name, category, quantity, unit, min_quantity, 
+                   expiry_date, location, notes, is_active
+            FROM ht_kitchen_inventory
+            WHERE is_active = TRUE
+            ORDER BY category, item_name
+        """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
+        
+        if not rows:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(rows, columns=["id", "item_name", "category", "quantity", "unit", 
+                                          "min_quantity", "expiry_date", "location", "notes", "is_active"])
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to load inventory: {e}")
+        return pd.DataFrame()
+
+
+def add_inventory_item(item_name: str, category: str, quantity: float, unit: str,
+                       min_quantity: float = 0, expiry_date=None, location: str = "",
+                       notes: str = "", user_id: Optional[int] = None, 
+                       db_config: int = 1) -> Tuple[bool, str]:
+    """Add item to kitchen inventory."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("""
+            INSERT INTO ht_kitchen_inventory 
+            (user_id, item_name, category, quantity, unit, min_quantity, expiry_date, location, notes)
+            VALUES (:user_id, :item_name, :category, :quantity, :unit, :min_quantity, :expiry_date, :location, :notes)
+        """)
+        
+        with db.engine.connect() as conn:
+            conn.execute(query, {
+                "user_id": user_id,
+                "item_name": item_name,
+                "category": category,
+                "quantity": quantity,
+                "unit": unit,
+                "min_quantity": min_quantity,
+                "expiry_date": expiry_date,
+                "location": location,
+                "notes": notes
+            })
+            conn.commit()
+        
+        return True, "Item added to inventory"
+        
+    except Exception as e:
+        logger.error(f"Failed to add inventory item: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def update_inventory_quantity(item_id: int, quantity: float, db_config: int = 1) -> Tuple[bool, str]:
+    """Update inventory item quantity."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("UPDATE ht_kitchen_inventory SET quantity = :quantity WHERE id = :id")
+        with db.engine.connect() as conn:
+            conn.execute(query, {"quantity": quantity, "id": item_id})
+            conn.commit()
+        
+        return True, "Quantity updated"
+        
+    except Exception as e:
+        logger.error(f"Failed to update inventory: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def get_low_stock_items(db_config: int = 1) -> pd.DataFrame:
+    """Get items that are low in stock."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return pd.DataFrame()
+    
+    try:
+        query = text("""
+            SELECT item_name, category, quantity, unit, min_quantity
+            FROM ht_kitchen_inventory
+            WHERE is_active = TRUE AND quantity <= min_quantity
+            ORDER BY (quantity / NULLIF(min_quantity, 0)) ASC
+        """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
+        
+        if not rows:
+            return pd.DataFrame()
+        
+        return pd.DataFrame(rows, columns=["item_name", "category", "quantity", "unit", "min_quantity"])
+        
+    except Exception as e:
+        logger.error(f"Failed to get low stock items: {e}")
+        return pd.DataFrame()
+
+
+def get_expiring_items(days: int = 7, db_config: int = 1) -> pd.DataFrame:
+    """Get items expiring within specified days."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return pd.DataFrame()
+    
+    try:
+        query = text("""
+            SELECT item_name, category, quantity, unit, expiry_date
+            FROM ht_kitchen_inventory
+            WHERE is_active = TRUE 
+            AND expiry_date IS NOT NULL 
+            AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL :days DAY)
+            ORDER BY expiry_date ASC
+        """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query, {"days": days})
+            rows = result.fetchall()
+        
+        if not rows:
+            return pd.DataFrame()
+        
+        return pd.DataFrame(rows, columns=["item_name", "category", "quantity", "unit", "expiry_date"])
+        
+    except Exception as e:
+        logger.error(f"Failed to get expiring items: {e}")
+        return pd.DataFrame()
+
+
+# ==================== SHOPPING LIST FUNCTIONS ====================
+
+def load_shopping_list(user_id: Optional[int] = None, include_purchased: bool = False,
+                       db_config: int = 1) -> pd.DataFrame:
+    """Load shopping list."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return pd.DataFrame()
+    
+    try:
+        if include_purchased:
+            query = text("""
+                SELECT id, item_name, category, quantity, unit, estimated_price, 
+                       priority, is_purchased, purchased_at, notes
+                FROM ht_shopping_list
+                ORDER BY is_purchased, priority DESC, item_name
+            """)
+        else:
+            query = text("""
+                SELECT id, item_name, category, quantity, unit, estimated_price, 
+                       priority, is_purchased, notes
+                FROM ht_shopping_list
+                WHERE is_purchased = FALSE
+                ORDER BY priority DESC, item_name
+            """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
+        
+        if not rows:
+            return pd.DataFrame()
+        
+        cols = ["id", "item_name", "category", "quantity", "unit", "estimated_price", 
+                "priority", "is_purchased", "purchased_at", "notes"] if include_purchased else \
+               ["id", "item_name", "category", "quantity", "unit", "estimated_price", 
+                "priority", "is_purchased", "notes"]
+        
+        return pd.DataFrame(rows, columns=cols)
+        
+    except Exception as e:
+        logger.error(f"Failed to load shopping list: {e}")
+        return pd.DataFrame()
+
+
+def add_shopping_item(item_name: str, category: str = "", quantity: float = 1,
+                      unit: str = "pieces", estimated_price: float = 0,
+                      priority: str = "medium", notes: str = "",
+                      user_id: Optional[int] = None, db_config: int = 1) -> Tuple[bool, str]:
+    """Add item to shopping list."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("""
+            INSERT INTO ht_shopping_list 
+            (user_id, item_name, category, quantity, unit, estimated_price, priority, notes)
+            VALUES (:user_id, :item_name, :category, :quantity, :unit, :estimated_price, :priority, :notes)
+        """)
+        
+        with db.engine.connect() as conn:
+            conn.execute(query, {
+                "user_id": user_id,
+                "item_name": item_name,
+                "category": category,
+                "quantity": quantity,
+                "unit": unit,
+                "estimated_price": estimated_price,
+                "priority": priority,
+                "notes": notes
+            })
+            conn.commit()
+        
+        return True, "Item added to shopping list"
+        
+    except Exception as e:
+        logger.error(f"Failed to add shopping item: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def mark_item_purchased(item_id: int, db_config: int = 1) -> Tuple[bool, str]:
+    """Mark shopping list item as purchased."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("""
+            UPDATE ht_shopping_list 
+            SET is_purchased = TRUE, purchased_at = NOW()
+            WHERE id = :id
+        """)
+        with db.engine.connect() as conn:
+            conn.execute(query, {"id": item_id})
+            conn.commit()
+        
+        return True, "Item marked as purchased"
+        
+    except Exception as e:
+        logger.error(f"Failed to mark item purchased: {e}")
+        return False, f"Error: {str(e)}"
+
+
+# ==================== GOALS FUNCTIONS ====================
+
+def load_goals(user_id: Optional[int] = None, db_config: int = 1) -> pd.DataFrame:
+    """Load financial goals."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return pd.DataFrame()
+    
+    try:
+        query = text("""
+            SELECT id, goal_name, target_amount, current_amount, deadline, 
+                   status, priority, notes
+            FROM ht_goals
+            WHERE status = 'active'
+            ORDER BY deadline ASC
+        """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
+        
+        if not rows:
+            return pd.DataFrame()
+        
+        return pd.DataFrame(rows, columns=["id", "goal_name", "target_amount", "current_amount", 
+                                            "deadline", "status", "priority", "notes"])
+        
+    except Exception as e:
+        logger.error(f"Failed to load goals: {e}")
+        return pd.DataFrame()
+
+
+def add_goal(goal_name: str, target_amount: float, deadline=None, priority: str = "medium",
+             notes: str = "", user_id: Optional[int] = None, db_config: int = 1) -> Tuple[bool, str]:
+    """Add a new financial goal."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("""
+            INSERT INTO ht_goals (user_id, goal_name, target_amount, deadline, priority, notes)
+            VALUES (:user_id, :goal_name, :target_amount, :deadline, :priority, :notes)
+        """)
+        
+        with db.engine.connect() as conn:
+            conn.execute(query, {
+                "user_id": user_id,
+                "goal_name": goal_name,
+                "target_amount": target_amount,
+                "deadline": deadline,
+                "priority": priority,
+                "notes": notes
+            })
+            conn.commit()
+        
+        return True, "Goal added successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to add goal: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def update_goal_progress(goal_id: int, amount: float, db_config: int = 1) -> Tuple[bool, str]:
+    """Update goal progress."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("UPDATE ht_goals SET current_amount = :amount WHERE id = :id")
+        with db.engine.connect() as conn:
+            conn.execute(query, {"amount": amount, "id": goal_id})
+            conn.commit()
+        
+        return True, "Goal progress updated"
+        
+    except Exception as e:
+        logger.error(f"Failed to update goal: {e}")
+        return False, f"Error: {str(e)}"
+
+
+# ==================== UI HELPER FUNCTIONS ====================
+
+def show_success_message(message: str):
+    """Show success message."""
+    st.success(f"✅ {message}")
+
+
+def show_error_message(message: str):
+    """Show error message."""
+    st.error(f"❌ {message}")
+
+
+def show_warning_message(message: str):
+    """Show warning message."""
+    st.warning(f"⚠️ {message}")
+
+
+def show_info_message(message: str):
+    """Show info message."""
+    st.info(f"ℹ️ {message}")
+
+
+def create_metric_card(title: str, value: float, delta: float = None, delta_color: str = "normal"):
+    """Create a styled metric card."""
     st.metric(
         label=title,
         value=format_currency(value),
@@ -384,30 +890,226 @@ def create_metric_card(title, value, delta=None, delta_color="normal"):
         delta_color=delta_color
     )
 
-def show_success_message(message):
-    """Show success message with consistent styling"""
-    st.success(f"✅ {message}")
 
-def show_error_message(message):
-    """Show error message with consistent styling"""
-    st.error(f"❌ {message}")
+# ==================== GOALS FUNCTIONS (EXTENDED) ====================
 
-def show_warning_message(message):
-    """Show warning message with consistent styling"""
-    st.warning(f"⚠️ {message}")
+def get_goals_list(user_id=None, db_config: int = 1) -> list:
+    """Load financial goals as list of dictionaries."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return []
+    
+    try:
+        query = text("""
+            SELECT id, goal_name, target_amount, current_amount, deadline, 
+                   category, description, priority, status, created_at
+            FROM ht_goals
+            ORDER BY deadline ASC
+        """)
+        
+        with db.engine.connect() as conn:
+            result = conn.execute(query)
+            rows = result.fetchall()
+        
+        return [
+            {
+                "id": row[0],
+                "name": row[1],
+                "target_amount": float(row[2]) if row[2] else 0,
+                "current_amount": float(row[3]) if row[3] else 0,
+                "deadline": row[4],
+                "category": row[5],
+                "description": row[6],
+                "priority": row[7],
+                "status": row[8] or "In Progress",
+                "created_at": row[9]
+            }
+            for row in rows
+        ]
+        
+    except Exception as e:
+        logger.error(f"Failed to get goals list: {e}")
+        return []
 
-def show_info_message(message):
-    """Show info message with consistent styling"""
-    st.info(f"ℹ️ {message}")
 
-# Caching decorators
-@st.cache_data(ttl=3600)  # Cache for 1 hour
-def load_cached_expense_data():
-    """Cached version of load_expense_data"""
-    return load_expense_data()
+def save_goal(goal_data: dict, user_id=None, db_config: int = 1) -> Tuple[bool, str]:
+    """Save (create or update) a financial goal."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        if goal_data.get('id'):
+            # Update existing goal
+            query = text("""
+                UPDATE ht_goals SET 
+                    goal_name = :name,
+                    target_amount = :target_amount,
+                    current_amount = :current_amount,
+                    deadline = :deadline,
+                    category = :category,
+                    description = :description,
+                    priority = :priority,
+                    status = :status,
+                    updated_at = NOW()
+                WHERE id = :id
+            """)
+            params = {
+                "id": goal_data.get('id'),
+                "name": goal_data.get('name'),
+                "target_amount": goal_data.get('target_amount', 0),
+                "current_amount": goal_data.get('current_amount', 0),
+                "deadline": goal_data.get('deadline'),
+                "category": goal_data.get('category', 'General'),
+                "description": goal_data.get('description', ''),
+                "priority": goal_data.get('priority', 'Medium'),
+                "status": goal_data.get('status', 'In Progress')
+            }
+        else:
+            # Create new goal
+            query = text("""
+                INSERT INTO ht_goals 
+                (user_id, goal_name, target_amount, current_amount, deadline, 
+                 category, description, priority, status)
+                VALUES (:user_id, :name, :target_amount, :current_amount, :deadline,
+                        :category, :description, :priority, :status)
+            """)
+            params = {
+                "user_id": user_id,
+                "name": goal_data.get('name'),
+                "target_amount": goal_data.get('target_amount', 0),
+                "current_amount": goal_data.get('current_amount', 0),
+                "deadline": goal_data.get('deadline'),
+                "category": goal_data.get('category', 'General'),
+                "description": goal_data.get('description', ''),
+                "priority": goal_data.get('priority', 'Medium'),
+                "status": goal_data.get('status', 'In Progress')
+            }
+        
+        with db.engine.connect() as conn:
+            conn.execute(query, params)
+            conn.commit()
+        
+        return True, "Goal saved successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to save goal: {e}")
+        return False, f"Error: {str(e)}"
 
-@st.cache_data(ttl=1800)  # Cache for 30 minutes
-def get_cached_monthly_summary(year, month):
-    """Cached monthly summary calculation"""
-    df = load_cached_expense_data()
-    return get_monthly_summary(df, year, month)
+
+def delete_goal(goal_id: int, user_id=None, db_config: int = 1) -> Tuple[bool, str]:
+    """Delete a financial goal."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        query = text("DELETE FROM ht_goals WHERE id = :id")
+        with db.engine.connect() as conn:
+            conn.execute(query, {"id": goal_id})
+            conn.commit()
+        
+        return True, "Goal deleted successfully"
+        
+    except Exception as e:
+        logger.error(f"Failed to delete goal: {e}")
+        return False, f"Error: {str(e)}"
+
+
+# ==================== SYSTEM STATS FUNCTIONS ====================
+
+def get_system_stats(db_config: int = 1) -> Dict[str, Any]:
+    """Get system-wide statistics."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return {
+            "total_users": 0,
+            "total_transactions": 0,
+            "total_volume": 0,
+            "total_categories": 0
+        }
+    
+    try:
+        stats = {}
+        
+        # User count
+        with db.engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM ht_users"))
+            stats["total_users"] = result.fetchone()[0]
+        
+        # Transaction count and volume
+        with db.engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*), COALESCE(SUM(amount), 0) FROM ht_transactions"))
+            row = result.fetchone()
+            stats["total_transactions"] = row[0]
+            stats["total_volume"] = float(row[1])
+        
+        # Category count
+        with db.engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM ht_categories WHERE is_active = TRUE"))
+            stats["total_categories"] = result.fetchone()[0]
+        
+        return stats
+        
+    except Exception as e:
+        logger.error(f"Failed to get system stats: {e}")
+        return {
+            "total_users": 0,
+            "total_transactions": 0,
+            "total_volume": 0,
+            "total_categories": 0
+        }
+
+
+def get_date_range_data(df: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
+    """Filter dataframe by date range."""
+    if df.empty:
+        return df
+    
+    return df[(df["Date"] >= start_date) & (df["Date"] <= end_date)]
+
+
+# ==================== ADMIN DANGEROUS ACTIONS ====================
+
+def clear_all_transactions(db_config: int = 1) -> Tuple[bool, str]:
+    """Clear all transactions - DANGEROUS ADMIN ACTION."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("DELETE FROM ht_transactions"))
+            conn.commit()
+        
+        logger.warning("All transactions cleared by admin!")
+        return True, "All transactions cleared"
+        
+    except Exception as e:
+        logger.error(f"Failed to clear transactions: {e}")
+        return False, f"Error: {str(e)}"
+
+
+def clear_activity_logs(db_config: int = 1) -> Tuple[bool, str]:
+    """Clear all activity logs - DANGEROUS ADMIN ACTION."""
+    db = get_db_manager(db_config)
+    
+    if not db.engine:
+        return False, "Database connection not available"
+    
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("DELETE FROM ht_activity_logs"))
+            conn.commit()
+        
+        logger.warning("All activity logs cleared by admin!")
+        return True, "All activity logs cleared"
+        
+    except Exception as e:
+        logger.error(f"Failed to clear activity logs: {e}")
+        return False, f"Error: {str(e)}"

@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  hometracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hometracker-app
+    image: hometracker:latest
+    ports:
+      - "8502:8501"
+    environment:
+      # Database Configuration 1: Remote Server (Primary)
+      - DB_NAME_1=becky
+      - DB_HOST_1=100.83.80.26
+      - DB_USER_1=NDERITU
+      - DB_PASSWORD_1=F!r3s1deDb#2025X
+      # Database Configuration 2: Local Development (Fallback)
+      - DB_NAME_2=hometracker
+      - DB_HOST_2=host.docker.internal
+      - DB_USER_2=root
+      - DB_PASSWORD_2=Fireside.Africa1or!
+      # Streamlit Configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    volumes:
+      - ./data:/app/data
+      - ./.streamlit:/app/.streamlit:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - hometracker-network
+
+  # --- ZROK PUBLIC TUNNEL SERVICE ---
+  zrok-service:
+    image: openziti/zrok
+    user: root
+    restart: unless-stopped
+    volumes:
+      - zrok_data:/root/.zrok
+    environment:
+      - ZROK_ENABLE_TOKEN=7YgMZYl6iJ06
+      - ZROK_UNIQUE_NAME=hometracker
+      - ZROK_TARGET=http://hometracker:8501
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        echo "--- 1. Attempting to Enable ---"
+        # Try to enable. If it fails (already enabled), just continue.
+        zrok enable $${ZROK_ENABLE_TOKEN} || true
+
+        echo "--- 2. Reserving Subdomain ---"
+        # Try to reserve. If it fails (already reserved), just continue.
+        zrok reserve public --unique-name $${ZROK_UNIQUE_NAME} $${ZROK_TARGET} || true
+        
+        echo "--- 3. Sharing ---"
+        # If this fails, it means the state is truly broken and we will auto-repair
+        zrok share reserved --headless $${ZROK_UNIQUE_NAME} || (echo "State broken, resetting..." && zrok disable && zrok enable $${ZROK_ENABLE_TOKEN} && zrok share reserved --headless $${ZROK_UNIQUE_NAME})
+    networks:
+      - hometracker-network
+    depends_on:
+      - hometracker
+
+volumes:
+  zrok_data:
+
+networks:
+  hometracker-network:
+    driver: bridge

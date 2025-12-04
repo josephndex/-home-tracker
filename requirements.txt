@@ -1,5 +1,33 @@
-matplotlib==3.10.7
-numpy==2.3.5
-pandas==2.3.3
-plotly==6.5.0
-streamlit==1.51.0
+# HomeTracker - Smart Home Management System
+# Requirements
+
+# Web Framework
+streamlit>=1.31.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+
+# Database
+sqlalchemy>=2.0.0
+mysql-connector-python>=8.0.0
+pymysql>=1.0.0
+mysqlclient>=2.2.0
+
+# Security
+bcrypt>=4.0.0
+python-dotenv>=1.0.0
+
+# Visualization
+plotly>=5.18.0
+
+# Date/Time
+python-dateutil>=2.8.0
+
+# File handling
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Additional utilities
+altair>=5.0.0

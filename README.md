@@ -1,291 +1,205 @@
-# 💸 Personal Finance Tracker - Enhanced Edition
+# 🏠 HomeTracker - Smart Home Management System
 
-A comprehensive personal finance management application built with Streamlit that helps you track expenses, income, set budgets, and achieve financial goals. Enhanced with advanced analytics, dynamic category management, and KSH currency support.
+[![Python Version](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.51+-red.svg)](https://streamlit.io)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+A stunning, modern home management application with a special focus on kitchen and food expense tracking. Built with Streamlit and MySQL for a beautiful, responsive experience.
+
+![HomeTracker Dashboard](https://via.placeholder.com/800x400/1a0d2e/f97316?text=HomeTracker+Dashboard)
 
 ## ✨ Features
 
-### 📊 Core Features
-- **Expense & Income Tracking**: Add, edit, and delete financial transactions
-- **Budget Management**: Set monthly budgets and track spending against them
-- **Financial Goals**: Set and track progress towards financial goals
-- **Data Visualization**: Interactive charts and reports with Plotly
-- **Data Export/Import**: Backup and restore your financial data
-- **CSV-Based Storage**: All data stored in CSV files (no database required)
+### 📊 Dashboard
+- Real-time financial overview
+- Interactive charts and visualizations
+- Quick insights and spending summaries
 
-### 🎯 Advanced Features
-- **Dynamic Category Management**: Create, edit, and delete categories from the app or CSV
-- **Advanced Statistics**: Deep insights with cumulative spending, weekday patterns, and more
-- **Smart Insights**: AI-powered spending recommendations and alerts
-- **Daily/Monthly/Yearly Analytics**: Multiple time-based views of your finances
-- **Category Analytics**: Detailed statistics per category with min/max/average
-- **Smart Validation**: Input validation to prevent data errors
-- **Data Cleanup**: Tools to maintain data quality
-- **Caching**: Improved performance with data caching
-- **Backup System**: Automatic backup creation and management
-- **Responsive Design**: Works on desktop and mobile devices
-- **KSH Currency**: Configured for Kenyan Shilling with appropriate amount ranges
+### 🍳 Kitchen Central
+- Dedicated kitchen expense tracking
+- Smart shopping list management
+- Kitchen spending analytics
+- Category-specific tracking (Groceries, Vegetables, Meat, Seafood, etc.)
+
+### 💰 Budget Management
+- Set monthly budgets by category
+- Visual progress indicators
+- Budget templates (Conservative, Moderate, Comfortable)
+- Threshold alerts
+
+### 📈 Reports & Analytics
+- Comprehensive financial reports
+- Spending trends and patterns
+- Category analysis
+- Export to CSV
+
+### 🎯 Financial Goals
+- Set and track savings goals
+- Progress visualization
+- Deadline tracking
+- Priority management
+
+### 📂 Category Management
+- Custom categories
+- Kitchen-specific categories with emojis
+- Usage statistics
+
+### 🔐 Security
+- Secure authentication with bcrypt
+- Role-based access control
+- Admin panel (Super Admin: NDERITU)
+- Activity logging
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8 or higher
-- pip (Python package installer)
+
+- Python 3.10+
+- MySQL Server
+- pip (Python package manager)
 
 ### Installation
 
-1. **Clone or download the project**
+1. **Clone the repository**
    ```bash
-   git clone <repository-url>
-   cd expense_tracker_copy
+   git clone https://github.com/yourusername/hometracker.git
+   cd hometracker
    ```
 
-2. **Install dependencies**
+2. **Create a virtual environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Run the application**
+4. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
+
+5. **Create the database**
+   ```sql
+   CREATE DATABASE hometracker;
+   ```
+
+6. **Run the application**
    ```bash
    streamlit run main.py
    ```
 
-4. **Open your browser**
-   Navigate to `http://localhost:8501`
+7. **Access the app**
+   - Open your browser to `http://localhost:8501`
+   - Register with username `NDERITU` to become Super Admin
 
-## 📁 Project Structure
+## 🗄️ Database Schema
 
-```
-Personal-Expense-Tracker/
-├── main.py                  # Main application entry point with navigation
-├── config.py                # Configuration and constants (KSH currency)
-├── utils.py                 # Shared utility functions with advanced analytics
-├── home.py                  # Home dashboard with quick stats
-├── add_expense.py           # Add/edit/import transactions
-├── budget.py                # Budget management with templates
-├── report.py                # Reports and visualizations
-├── statistics.py            # ⭐ NEW: Advanced statistics & insights
-├── categories.py            # ⭐ NEW: Dynamic category management (CRUD)
-├── monthly.py               # Monthly overview
-├── goal.py                  # Financial goals tracking
-├── about.py                 # About page
-├── guidelines.py            # User guidelines
-├── data/                    # Data storage (CSV files)
-│   ├── add_expense.csv      # Transaction data
-│   ├── financial_goals.csv  # Goals data
-│   ├── budgets.csv          # Budget configuration
-│   └── categories.csv       # ⭐ NEW: Custom categories
-├── backups/                 # Automatic backup files
-├── images/                  # Application images
-├── requirements.txt         # Python dependencies
-└── README.md               # This file
-```
+The application uses the following tables:
+- `ht_users` - User accounts and authentication
+- `ht_transactions` - Income and expense records
+- `ht_categories` - Expense/income categories
+- `ht_budgets` - Monthly budget allocations
+- `ht_goals` - Financial goals
+- `ht_kitchen_inventory` - Kitchen inventory tracking
+- `ht_shopping_list` - Shopping list items
+- `ht_activity_logs` - User activity tracking
 
-## 🆕 What's New in This Enhanced Version
+## 🎨 Theme
 
-### 🌟 Major Enhancements
+HomeTracker features a stunning orange/purple gradient theme:
+- **Primary**: `#f97316` (Orange)
+- **Secondary**: `#a855f7` (Purple)
+- **Accent**: `#667eea` (Electric Blue)
 
-1. **Dynamic Category Management** 
-   - Create, edit, and delete categories directly from the app
-   - Category usage analytics shows which categories you use most
-   - Import/export categories via CSV
-   - Prevents deletion of categories with existing transactions
-   - Rename categories and automatically update all transactions
+## 📱 Pages
 
-2. **Advanced Statistics Page**
-   - Daily expense trends with interactive charts
-   - Weekday spending patterns analysis
-   - Cumulative spending growth tracking
-   - Category-wise deep dive with min/max/average
-   - Smart insights and recommendations
-   - Month-over-month comparison
-   - Savings rate calculation and recommendations
+| Page | Description |
+|------|-------------|
+| Login | Authentication & Registration |
+| Home | Dashboard with overview |
+| Add Transaction | Record expenses/income |
+| Budget | Set and track budgets |
+| Reports | Financial reports |
+| Kitchen | Kitchen expense management |
+| Statistics | Advanced analytics |
+| Goals | Financial goal tracking |
+| Categories | Manage categories |
+| Admin | Admin panel (hidden) |
+| Settings | User preferences |
+| About | Application info |
 
-3. **KSH Currency Support**
-   - Configured for Kenyan Shilling
-   - Appropriate amount ranges (0.01 to 10,000,000 KSH)
-   - Budget templates adjusted for Kenya context
+## 🍳 Kitchen Categories
 
-4. **Enhanced Analytics Functions**
-   - `get_spending_insights()` - AI-powered recommendations
-   - `get_weekday_spending()` - Day-of-week patterns
-   - `get_cumulative_spending()` - Track spending growth
-   - `get_category_statistics()` - Detailed category metrics
-   - `get_most_expensive_day()` - Identify peak spending days
+Special focus on kitchen-related expenses:
+- 🛒 Groceries
+- 🥬 Vegetables
+- 🍖 Meat & Poultry
+- 🐟 Fish & Seafood
+- 🍎 Fruits
+- 🥛 Dairy & Eggs
+- 🥤 Beverages
+- 🍪 Snacks
+- 🫒 Cooking Oil
+- 🧂 Spices & Seasonings
+- 🧁 Baking Supplies
+- 🧹 Cleaning Supplies
+- 🍳 Kitchen Supplies
+- 🔥 Cooking Gas
 
-5. **Improved Category System**
-   - Categories stored in `categories.csv` for easy editing
-   - Default categories: Salary, Food, Transport, Shopping, Bills, Utilities, Entertainment, Healthcare, Education, Others
-   - Add custom categories that fit your lifestyle
-   - Bulk import/export functionality
+## 🔐 Admin Access
 
-## 🎮 How to Use
+The Super Admin user is `NDERITU`. This user:
+- Has full admin privileges
+- Can manage all users
+- Can view activity logs
+- Can access system settings
+- Cannot be deleted or demoted
 
-### 1. Getting Started
-- **Home Page**: View your financial summary and recent transactions
-- **Add Expense**: Record new income or expense entries with dynamic categories
-- **Budget**: Set and track monthly budgets by category
+The Admin panel is hidden from regular users.
 
-### 2. Adding Transactions
-1. Go to "Add Expense" page
-2. Select transaction type (Income/Expense)
-3. Choose from your custom categories
-4. Enter amount (in KSH) and date
-5. Add optional description
-6. Click "Save Entry"
+## 📝 Environment Variables
 
-### 3. Managing Categories
-1. Go to "Categories" page
-2. View all existing categories and their usage
-3. Add new categories for your specific needs
-4. Rename existing categories (updates all transactions)
-5. Delete unused categories
-6. Import/export categories via CSV
+```env
+# Database Configuration
+DB_NAME_1=hometracker
+DB_HOST_1=localhost
+DB_USER_1=your_username
+DB_PASSWORD_1=your_password
+DB_PORT_1=3306
 
-### 4. Budget Management
-1. Go to "Budget" page
-2. Set monthly budgets for each category (in KSH)
-3. Use quick templates (Conservative/Moderate) or set custom amounts
-4. Monitor spending against budgets with visual progress bars
-
-### 5. Advanced Statistics
-1. Go to "Statistics" page
-2. View daily expense trends and patterns
-3. Analyze spending by day of week
-4. See cumulative spending growth
-5. Get personalized savings recommendations
-6. Identify top categories to optimize
-
-### 6. Data Management
-- **Export Data**: Download your data as CSV
-- **Import Data**: Bulk upload transactions via CSV
-- **Backup**: Automatic backups are created regularly
-- **Category Management**: Export/import categories for backup
-
-## 🔧 Configuration
-
-### Customizing Categories
-Edit `config.py` to modify default categories:
-```python
-DEFAULT_CATEGORIES = ["Salary", "Food", "Transport", "Shopping", "Bills", "Others"]
+# Application Settings
+APP_SECRET_KEY=your-secret-key
+DEBUG=False
+SESSION_TIMEOUT_HOURS=24
 ```
 
-### Currency Settings
-Change currency in `config.py`:
-```python
-CURRENCY = "₹"  # Change to your preferred currency
-```
+## 🛠️ Technology Stack
 
-## 🛠️ Data Validation
-
-The application includes comprehensive data validation:
-- **Amount Validation**: Must be between 0.01 and 1,000,000
-- **Category Validation**: Required field with 50 character limit
-- **Description Validation**: Optional field with 200 character limit
-- **Date Validation**: Ensures valid date format
-
-## 📊 Data Storage
-
-- **Format**: CSV files stored in `data/` directory
-- **Backup**: Automatic backups in `backups/` directory
-- **Security**: Data stays on your local machine
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **"No module named 'streamlit'"**
-   ```bash
-   pip install streamlit
-   ```
-
-2. **Data not loading**
-   - Check if `data/` directory exists
-   - Verify CSV file permissions
-
-3. **Performance issues**
-   - Use data cleanup tools to remove invalid entries
-   - Clear browser cache
-
-### Data Recovery
-- Check `backups/` directory for recent backups
-- Use data cleanup tools to fix common issues
-
-## 🔒 Privacy & Security
-
-- **Local Storage**: All data is stored locally on your machine
-- **No Cloud**: No data is sent to external servers
-- **Backup**: Regular automatic backups protect your data
-
-## 🎨 Customization
-
-### Styling
-Modify the application appearance by editing CSS in individual pages or creating a custom theme.
-
-### Adding Features
-The modular structure makes it easy to add new features:
-1. Create new Python files for new pages
-2. Add navigation entries in `main.py`
-3. Use utility functions from `utils.py`
-
-## 📈 Performance Tips
-
-1. **Regular Cleanup**: Use data cleanup tools monthly
-2. **Limit Data**: Archive old data if performance slows
-3. **Browser Cache**: Clear cache if experiencing issues
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📝 Changelog
-
-### Version 3.0 (Enhanced Edition - Current)
-- ✅ **NEW**: Dynamic category management (CRUD operations)
-- ✅ **NEW**: Advanced statistics page with deep insights
-- ✅ **NEW**: KSH currency support with appropriate ranges
-- ✅ **NEW**: Smart spending insights and recommendations
-- ✅ **NEW**: Weekday spending pattern analysis
-- ✅ **NEW**: Cumulative spending tracking
-- ✅ **NEW**: Category usage analytics
-- ✅ **NEW**: Bulk category import/export
-- ✅ **ENHANCED**: Budget templates adjusted for Kenya
-- ✅ **ENHANCED**: More detailed category statistics
-- ✅ **ENHANCED**: Improved navigation and UI organization
-
-### Version 2.0
-- ✅ Added budget management system
-- ✅ Improved data validation
-- ✅ Added data cleanup tools
-- ✅ Enhanced UI/UX
-- ✅ Added caching for better performance
-- ✅ Implemented backup system
-
-### Version 1.0 (Original)
-- ✅ Basic expense tracking
-- ✅ Simple reports
-- ✅ Goal setting
-
-## 📞 Support
-
-- **Documentation**: Check the Guidelines page in the app
-- **Issues**: Report bugs through GitHub issues
-- **Issues**: Report bugs through GitHub issues
+- **Frontend**: Streamlit
+- **Backend**: Python
+- **Database**: MySQL + SQLAlchemy
+- **Visualization**: Plotly
+- **Data Processing**: Pandas, NumPy
+- **Security**: bcrypt
+- **Styling**: Custom CSS
 
 ## 📄 License
 
-This project is open source and available under the MIT License.
+MIT License - feel free to use and modify!
 
-## 🙏 Acknowledgments
+## 👨‍💻 Developer
 
-- Built with [Streamlit](https://streamlit.io)
-- Data visualization with [Plotly](https://plotly.com)
-- Data processing with [Pandas](https://pandas.pydata.org)
+**Joseph Nderitu**
+- Email: josephnderito16@gmail.com
+- GitHub: github.com/josephndex
 
 ---
 
-**Happy Financial Tracking! 💰**
-"# Personal-Finance-Tracker" 
+<p align="center">
+  Made with ❤️ by Joseph Nderitu
+</p>

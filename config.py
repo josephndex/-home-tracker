@@ -1,21 +1,110 @@
+"""
+Configuration settings for HomeTracker - Smart Home Management System
+A comprehensive home management application with focus on kitchen management
+"""
 import os
-import pandas as pd
-from datetime import datetime
 
-# File paths
+# App Settings
+APP_TITLE = "HomeTracker - Smart Home Management"
+APP_VERSION = "2.0.0"
+APP_ICON = "🏠"
+PAGE_LAYOUT = "wide"
+
+# Developer Info
+DEVELOPER_NAME = "Joseph Nderitu"
+DEVELOPER_EMAIL = "josephnderito16@gmail.com"
+DEVELOPER_GITHUB = "github.com/josephndex"
+
+# Data Settings
 DATA_DIR = "data"
-EXPENSE_FILE = os.path.join(DATA_DIR, "add_expense.csv")
-GOALS_FILE = os.path.join(DATA_DIR, "financial_goals.csv")
-BACKUP_DIR = "backups"
-BUDGETS_FILE = os.path.join(DATA_DIR, "budgets.csv")
-CATEGORIES_FILE = os.path.join(DATA_DIR, "categories.csv")
-
-# Ensure directories exist
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(BACKUP_DIR, exist_ok=True)
 
-# Categories - now stored in CSV - Focused on Home & Kitchen Management
-DEFAULT_CATEGORIES = ["Groceries", "Vegetables", "Meat & Poultry", "Fish & Seafood", "Fruits", "Cooking Gas", "Kitchen Supplies", "Cleaning Supplies", "Utilities (Water/Electricity)", "House Maintenance", "Others"]
+# Theme Colors - STUNNING Teal/Cyan/Rose palette
+THEME_COLORS = {
+    'primary': '#14b8a6',       # Vibrant teal
+    'secondary': '#f43f5e',     # Beautiful rose
+    'accent': '#06b6d4',        # Cyan blue
+    'gradient_start': '#14b8a6',
+    'gradient_mid': '#06b6d4',
+    'gradient_end': '#f43f5e',
+    'success': '#14b8a6',
+    'warning': '#fbbf24',
+    'danger': '#ef4444',
+    'info': '#06b6d4',
+    'dark': '#0f172a',
+    'darker': '#042f2e',
+    'card_bg': '#134e4a',
+    'text_primary': '#f1f5f9',
+    'text_secondary': '#94a3b8',
+    'text_muted': '#64748b',
+    'border': 'rgba(20, 184, 166, 0.3)',
+    'glow_teal': 'rgba(20, 184, 166, 0.4)',
+    'glow_rose': 'rgba(244, 63, 94, 0.3)',
+    'light': '#f8f9fa'
+}
+
+# Categories - Focused on Home & Kitchen Management
+DEFAULT_CATEGORIES = [
+    # Kitchen & Food
+    "Groceries",
+    "Vegetables", 
+    "Meat & Poultry",
+    "Fish & Seafood",
+    "Fruits",
+    "Dairy & Eggs",
+    "Beverages",
+    "Snacks",
+    "Baking Supplies",
+    "Spices & Condiments",
+    "Cooking Gas",
+    "Kitchen Supplies",
+    "Kitchen Appliances",
+    # Home Maintenance
+    "Cleaning Supplies",
+    "Utilities (Water)",
+    "Utilities (Electricity)",
+    "House Maintenance",
+    "Furniture",
+    "Home Decor",
+    # Personal & Family
+    "Health & Medicine",
+    "Personal Care",
+    "Clothing",
+    "Education",
+    "Entertainment",
+    "Transportation",
+    "Others"
+]
+
+# Kitchen-specific categories with emojis for inventory
+KITCHEN_CATEGORIES = {
+    "Groceries": "🛒",
+    "Vegetables": "🥬",
+    "Meat & Poultry": "🍖",
+    "Fish & Seafood": "🐟",
+    "Fruits": "🍎",
+    "Dairy & Eggs": "🥛",
+    "Beverages": "🥤",
+    "Snacks": "🍪",
+    "Cooking Oil": "🫒",
+    "Spices & Seasonings": "🧂",
+    "Baking Supplies": "🧁",
+    "Cleaning Supplies": "🧹",
+    "Kitchen Supplies": "🍳",
+    "Cooking Gas": "🔥",
+    "Grains & Cereals": "🌾",
+    "Canned Goods": "🥫",
+    "Frozen Foods": "🧊",
+    "Condiments": "🍯"
+}
+
+# Units for kitchen inventory
+INVENTORY_UNITS = [
+    "kg", "g", "lbs", "oz",  # Weight
+    "L", "ml", "cups", "tbsp", "tsp",  # Volume
+    "pieces", "packs", "bottles", "cans", "bags",  # Count
+    "bunches", "bundles", "loaves", "dozens"  # Other
+]
 
 # Currency
 CURRENCY = "KSH"
@@ -31,39 +120,47 @@ MAX_DESCRIPTION_LENGTH = 200
 MIN_AMOUNT = 0.01
 MAX_CATEGORY_LENGTH = 50
 
-# App settings
-APP_TITLE = "Madam Becky House Management Tracker"
-APP_ICON = "🏠"
-PAGE_LAYOUT = "wide"
+# Budget Thresholds
+BUDGET_THRESHOLDS = {
+    'excellent': 50,   # Under 50% spent
+    'good': 75,        # 50-75% spent
+    'warning': 90,     # 75-90% spent
+    'danger': 100      # Over 90% spent
+}
 
-# Developer info
-DEVELOPER_NAME = "Joseph Nderitu"
-DEVELOPER_EMAIL = "josephnderito16@gmail.com"
-DEVELOPER_GITHUB = "github.com/josephndex"
+# Database configurations  
+# Config 1: Remote server | Config 2: Local server
+DB_CONFIGS = {
+    1: "Remote Server (NDERITU)",
+    2: "Local Server (localhost)"
+}
 
-# Initialize CSV files if they don't exist
-def _initialize_csv_files():
-    """Automatically create CSV files if they don't exist"""
-    
-    # Initialize categories file
-    if not os.path.exists(CATEGORIES_FILE):
-        categories_df = pd.DataFrame({"Category": DEFAULT_CATEGORIES})
-        categories_df.to_csv(CATEGORIES_FILE, index=False)
-    
-    # Initialize expense file
-    if not os.path.exists(EXPENSE_FILE):
-        expense_df = pd.DataFrame(columns=["Date", "Type", "Amount", "Category", "Description"])
-        expense_df.to_csv(EXPENSE_FILE, index=False)
-    
-    # Initialize goals file
-    if not os.path.exists(GOALS_FILE):
-        goals_df = pd.DataFrame(columns=["Goal", "Target Amount", "Amount Saved", "Deadline"])
-        goals_df.to_csv(GOALS_FILE, index=False)
-    
-    # Initialize budgets file
-    if not os.path.exists(BUDGETS_FILE):
-        budgets_df = pd.DataFrame(columns=["Category", "Budget"])
-        budgets_df.to_csv(BUDGETS_FILE, index=False)
+# Meal types for planning
+MEAL_TYPES = [
+    "Breakfast",
+    "Lunch", 
+    "Dinner",
+    "Snack",
+    "Dessert"
+]
 
-# Auto-initialize on import
-_initialize_csv_files()
+# Days of the week
+DAYS_OF_WEEK = [
+    "Monday",
+    "Tuesday",
+    "Wednesday", 
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday"
+]
+
+# Chart dimensions
+CHART_HEIGHT = 600
+CHART_WIDTH = 1200
+
+# Session timeout in minutes
+SESSION_TIMEOUT_MINUTES = 30
+
+# Super Admin username
+SUPER_ADMIN_USERNAME = "NDERITU"
