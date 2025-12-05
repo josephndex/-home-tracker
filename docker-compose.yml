@@ -8,6 +8,7 @@ services:
     container_name: hometracker-app
     image: hometracker:latest
     ports:
+      # Using 8502 to avoid conflict with Fiber Analytics (which uses 8501)
       - "8502:8501"
     environment:
       # Database Configuration 1: Remote Server (Primary)
@@ -39,6 +40,7 @@ services:
       - hometracker-network
 
   # --- ZROK PUBLIC TUNNEL SERVICE ---
+  # Matches the architecture of Fiber Analytics exactly
   zrok-service:
     image: openziti/zrok
     user: root
@@ -62,8 +64,8 @@ services:
         zrok reserve public --unique-name $${ZROK_UNIQUE_NAME} $${ZROK_TARGET} || true
         
         echo "--- 3. Sharing ---"
-        # If this fails, it means the state is truly broken and we will auto-repair
-        zrok share reserved --headless $${ZROK_UNIQUE_NAME} || (echo "State broken, resetting..." && zrok disable && zrok enable $${ZROK_ENABLE_TOKEN} && zrok share reserved --headless $${ZROK_UNIQUE_NAME})
+        # If share fails, we: Disable -> Enable -> RESERVE (Important!) -> Share
+        zrok share reserved --headless $${ZROK_UNIQUE_NAME} || (echo "State broken, resetting..." && zrok disable && zrok enable $${ZROK_ENABLE_TOKEN} && zrok reserve public --unique-name $${ZROK_UNIQUE_NAME} $${ZROK_TARGET} && zrok share reserved --headless $${ZROK_UNIQUE_NAME})
     networks:
       - hometracker-network
     depends_on:
